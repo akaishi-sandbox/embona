@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Welcome to Firebase Hosting</title>
+
+  <!-- update the version number as needed -->
+  <script defer src="/__/firebase/5.3.1/firebase-app.js"></script>
+  <!-- include only the Firebase features as you need -->
+  <script defer src="/__/firebase/5.3.1/firebase-auth.js"></script>
+  <script defer src="/__/firebase/5.3.1/firebase-firestore.js"></script>
+  <script defer src="/__/firebase/5.3.1/firebase-messaging.js"></script>
+  <script defer src="/__/firebase/5.3.1/firebase-storage.js"></script>
+  <!-- initialize the SDK after all desired features are loaded -->
+  <script defer src="/__/firebase/init.js"></script>
+
+  <script src="https://cdn.firebase.com/libs/firebaseui/3.1.1/firebaseui.js"></script>
+  <link type="text/css" rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/3.1.1/firebaseui.css" />
+
+  <script src="viewer.js"></script>
+  <script src="bona_parser.js"></script>
+
+
+  <style media="screen">
+    body {
+      background: #ECEFF1;
+      color: rgba(0, 0, 0, 0.87);
+      font-family: Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    #message {
+      background: white;
+      max-width: 360px;
+      margin: 100px auto 16px;
+      padding: 32px 24px;
+      border-radius: 3px;
+    }
+
+    #message h2 {
+      color: #ffa100;
+      font-weight: bold;
+      font-size: 16px;
+      margin: 0 0 8px;
+    }
+
+    #message h1 {
+      font-size: 22px;
+      font-weight: 300;
+      color: rgba(0, 0, 0, 0.6);
+      margin: 0 0 16px;
+    }
+
+    #message p {
+      line-height: 140%;
+      margin: 16px 0 24px;
+      font-size: 14px;
+    }
+
+    #message a {
+      display: block;
+      text-align: center;
+      background: #039be5;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: white;
+      padding: 16px;
+      border-radius: 4px;
+    }
+
+    #message,
+    #message a {
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+    }
+
+    #load {
+      color: rgba(0, 0, 0, 0.4);
+      text-align: center;
+      font-size: 13px;
+    }
+
+    @media (max-width: 600px) {
+      body,
+      #message {
+        margin-top: 0;
+        background: white;
+        box-shadow: none;
+      }
+      body {
+        border-top: 16px solid #ffa100;
+      }
+    }
+
+    #gote_mochigoma {
+      position: relative;
+      background-color: #ff8;
+      left: 0;
+      top: 0;
+      overflow: hidden;
+    }
+
+    #board {
+      position: relative;
+      left: 0;
+      top: 0;
+      background-color: #000;
+      display: block;
+    }
+
+    #sente_mochigoma {
+      position: relative;
+      background-color: #ff8;
+      left: 0;
+      top: 0;
+      overflow: hidden;
+    }
+
+    #kifu {
+      position: absolute;
+      top: 0;
+      left: 400px;
+      height: 500px;
+    }
+
+    #save_data {
+      position: absolute;
+      top: 0;
+      left: 500px;
+      height: 500px;
+    }
+
+    #new_container {
+      position: absolute;
+      top: 510px;
+      left: 400px;
+      font-size: small;
+    }
+
+    #stdout {
+      font-family: monospace;
+      color: #000;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="firebaseui-auth-container"></div>
+  <div id="loader">Loading...</div>
+
+  <div id="game_scene" style="display:none;">
+    <div id="gote_mochigoma"></div>
+    <div id="board"></div>
+    <div id="sente_mochigoma"></div>
+    <textarea id="comment" cols="46" rows="10" readonly></textarea>
+    <select id="kifu" size="20">
+    </select>
+    <select id="save_data" size="40">
+    </select>
+    <div id="new_container" style="display:none">
+      <input type="button" id="new" value="新規対局">
+      <input type="button" id="save" value="対局を保存">
+      <dl>
+        <dt>対局スタイル</dt>
+        <dd>
+          <input type="radio" name="turn" id="cpu" checked>CPU vs CPU
+        </dd>
+        <dd>
+          <input type="radio" name="turn" id="black"> 先手
+        </dd>
+        <dd>
+          <input type="radio" name="turn" id="white"> 後手
+        </dd>
+      </dl>
+      <dl>
+        <dt>CPUの思考時間</dt>
+        <dd>
+          <input type="radio" name="time" id="sec1" checked> 1秒
+        </dd>
+        <dd>
+          <input type="radio" name="time" id="sec10"> 10秒
+        </dd>
+        <dd>
+          <input type="radio" name="time" id="sec30"> 30秒
+        </dd>
+      </dl>
+    </div>
+    <div style="position:absolute;top:0;left:0">
+      <pre id="stdout">Initializing</pre>
+    </div>
+  </div>
+
+
+  <script>
+    const Error = function (msg) { console.log("Error:" + msg); debugger; };
+    function bonanza(worker, db) {
+      document.querySelector('#game_scene').style.display = 'block';
+      const stdout = document.querySelector("#stdout");
+      let history = "";
+      let lastMoveCount = 0;
+      let moveCandidate;
+      let currentStyle = "cpu";
+      let nextStyle = "";
+      document.querySelector("#new").addEventListener("click", function () {
+        if (!nextStyle) {
+          let time = 1;
+          document.querySelector("#sec10").checked && (time = 10);
+          document.querySelector("#sec30").checked && (time = 30);
+          let style = "black";
+          document.querySelector("#white").checked && (style = "white");
+          document.querySelector("#cpu").checked && (style = "cpu");
+          nextStyle = style;
+          worker.postMessage("new:" + style + ":" + time);
+        }
+      });
+      document.querySelector("#save").addEventListener("click", function () {
+        db.add({
+          email: user.email,
+          date: Date.now(),
+          data: parser.handList
+        }).then(() => {
+          console.log("save ok");
+        }).catch(e => console.log(e));
+      });
+      viewer.onmoveenter = function (from, to, type) {
+        moveCandidate = (lastMoveCount + 1) + " " + from + " " + to + " " + type + " 0";
+        worker.postMessage("move:" + from + to + type);
+      };
+      worker.addEventListener("message", function (e) {
+        var str = e.data;
+        if (str.indexOf("message:") == 0) {
+          stdout.innerHTML = str.substr(8);
+        } else if (str.indexOf("embona:") == 0) {
+          var command = str.substr(7);
+          switch (command) {
+            case "new":
+              if (nextStyle) {
+                currentStyle = nextStyle;
+                nextStyle = "";
+
+                lastMoveCount = 0;
+                history = "";
+
+                viewer.isDraggable = false;
+                if (currentStyle == "black") {
+                  viewer.isSente = true;
+                  viewer.isDraggable = true;
+                } else {
+                  viewer.isSente = false;
+                  viewer.isDraggable = false;
+                }
+                if (currentStyle == "white") {
+                  viewer.setFlip(true);
+                } else {
+                  viewer.setFlip(false);
+                }
+                parser.parse(history);
+              }
+              break;
+            /*
+            case "accept":
+              history += moveCandidate + "\n";
+              moveCandidate = "";
+              parser.parse(history);
+              break;
+              */
+            case "illegal":
+              moveCandidate = "";
+              parser.parse(history);
+              viewer.isDraggable = true;
+              break;
+          }
+        } else {
+          stdout.innerHTML = "";
+          document.querySelector("#new_container").style.display = "block";
+          let data = "";
+          if (/(White|Black) ([0-9]+)> ([0-9][0-9])([0-9][0-9])([A-Z]+) '\((-?[0-9]+)/.test(str)) {
+            data = RegExp.$2 + " " + RegExp.$3 + " " + RegExp.$4 + " " + RegExp.$5 + " " + RegExp.$6;
+            lastMoveCount = +RegExp.$2;
+            if (currentStyle != "cpu") {
+              viewer.isDraggable = true;
+            } else {
+              if (!nextStyle) {
+                worker.postMessage("move");
+              }
+            }
+            //stdout.innerHTML += data + "<BR>";
+          } else if (/(White|Black) ([0-9]+)> (resign) '\((-?[0-9]+)/.test(str)) {
+            data = RegExp.$2 + " " + RegExp.$3 + " " + RegExp.$4;
+            lastMoveCount = +RegExp.$2;
+            //stdout.innerHTML += data + "<BR>";
+          } else if (moveCandidate && /- time ctrl/.test(str)) {
+            data = moveCandidate;
+            lastMoveCount++;
+            moveCandidate = "";
+          }
+          if (data) {
+            history += data + "\n";
+            //stdout.innerHTML = history;
+            parser.parse(history);
+          }
+          //stdout.innerHTML += str + "<BR>";
+        }
+      }, false);
+      parser.parse();
+      viewer.isSente = true;
+      viewer.isDraggable = false;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+      // // The Firebase SDK is initialized and available here!
+      //
+      // firebase.auth().onAuthStateChanged(user => { });
+      // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
+      // firebase.messaging().requestPermission().then(() => { });
+      // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
+      //
+      // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+
+      try {
+        const worker = new Worker("bonanza.js");
+
+        firebase.app();
+
+        // Initialize Cloud Firestore through Firebase
+        const firestore = firebase.firestore();
+        firestore.settings({ timestampsInSnapshots: true });
+        const db = firestore.collection('bonanza');
+
+
+        firebase.auth().onAuthStateChanged(user => {
+          if (user) {
+            console.log(user);
+            document.querySelector('#loader').innerHTML = user.email;
+
+            bonanza(worker, db);
+
+
+          } else {
+            const ui = new firebaseui.auth.AuthUI(firebase.auth());
+            ui.start('#firebaseui-auth-container', {
+              signInOptions: [
+                // List of OAuth providers supported.
+                firebase.auth.GoogleAuthProvider.PROVIDER_ID,
+              ],
+              // Other config options...
+            });
+          }
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  </script>
+</body>
+
+</html>
