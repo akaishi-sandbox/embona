@@ -321,7 +321,7 @@
       // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
 
       try {
-        const worker = new Worker("bonanza.js");
+        // const worker = new Worker("bonanza.js");
 
         firebase.app();
 
@@ -336,8 +336,17 @@
             console.log(user);
             document.querySelector('#loader').innerHTML = user.email;
 
-            bonanza(worker, db);
+            // bonanza(worker, db);
 
+            db.get().then(function (kifuList) {
+              console.log("kifu load");
+              kifuList.forEach(function (kifu) {
+                console.log(kifu.id, " => ", kifu.data());
+              });
+
+            }).catch(function (e) {
+              console.error(e);
+            });
 
           } else {
             const ui = new firebaseui.auth.AuthUI(firebase.auth());
